@@ -1,0 +1,105 @@
+# projects/genesis/manifest.yaml
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Genesis System Manifest: Single Source of Truth for Autonomous Operations
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# All paths within this manifest are relative to the project root (projects/genesis),
+# unless they are absolute paths required by the remote machine.
+
+nodes:
+  controller:
+    host: localhost
+    user: scott.johnson
+    description: "Management laptop; runs the Godot observer UI."
+  simulation_host:
+    host: genesis-compute
+    user: admin
+    description: "VM running the Rust/Vulkan simulation core."
+  intelligence_host:
+    host: node2
+    user: admin
+    description: "Node running the Python-based AI listeners and services."
+
+components:
+  core:
+    node: simulation_host
+    path: "/home/admin/core"
+    description: "Rust/Vulkan simulation engine. Broadcasts world state via ZMQ."
+    build:
+      command: "source /home/admin/.cargo/env && cd {{path}} && cargo build --release"
+      description: "Build the release binary for the core engine."
+    run:
+      command: "cd {{path}} && (nohup ./target/release/genesis-core > core.log 2>&1 < /dev/null &)"
+      description: "Run the core engine in the background."
+    stop:
+      command: "pkill genesis-core"
+      description: "Terminate all running core engine processes."
+    is_running_check:
+      command: "pgrep genesis-core"
+      description: "Check if the core engine process is running."
+
+  intelligence:
+    node: intelligence_host
+    path: "/home/admin/intelligence"
+    description: "Python listener for AI processing."
+    run:
+      command: "source {{path}}/venv/bin/activate && python {{path}}/listener.py"
+      description: "Run the intelligence listener (for validation)."
+    stop:
+      command: "pkill -f 'python {{path}}/listener.py'"
+      description: "Stop the intelligence listener."
+    is_running_check:
+      command: "pgrep -f 'python {{path}}/listener.py'"
+      description: "Check if the intelligence listener is running."
+
+  observer:
+    node: controller
+    path: "observer"
+    description: "Godot UI and ZMQ-WebSocket bridge."
+    run:
+      command: "python3 {{path}}/launcher.py"
+      description: "Run the Godot launcher and bridge."
+    stop:
+      command: "pkill -f 'python3 {{path}}/launcher.py'"
+      description: "Stop the Godot launcher and bridge."
+    is_running_check:
+      command: "pgrep -f 'python3 {{path}}/launcher.py'"
+      description: "Check if the launcher is running."
+
+actions:
+  validate:
+    - description: "Check if Core is running on the simulation host."
+      component: core
+      action: is_running_check
+    - description: "Check if Intelligence listener is running on the AI host."
+      component: intelligence
+      action: is_running_check
+    - description: "Check if Observer is running on the controller."
+      component: observer
+      action: is_running_check
+
+  stop_all:
+    - description: "Stop Core Simulation"
+      component: core
+      action: stop
+    - description: "Stop Intelligence Listener"
+      component: intelligence
+      action: stop
+    - description: "Stop Observer"
+      component: observer
+      action: stop
+
+  restart_all_for_observation:
+    - description: "Stop any running processes first."
+      ref: stop_all
+    - description: "Build the Core engine (if needed)."
+      component: core
+      action: build
+    - description: "Start the Core simulation from scratch."
+      component: core
+      action: run
+    - description: "(Wait 2 seconds for sim to stabilize)..."
+      command: "sleep 2"
+    - description: "Launch the Observer on the laptop for viewing."
+      component: observer
+      action: run
