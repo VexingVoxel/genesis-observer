@@ -26,6 +26,7 @@ debug_packet_count = 0
 class Node2PresenceProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data, addr):
         global node2_online, node2_last_seen
+        # log(f"UDP Recv from {addr[0]}") # Debug any incoming UDP
         if addr[0] == "192.168.50.22": # Node 2 IP
             node2_online = True
             node2_last_seen = time.time()
