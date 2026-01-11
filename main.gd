@@ -11,6 +11,8 @@ var world_texture: ImageTexture
 
 func _ready():
 	print("Connecting to HIFI bridge...")
+	socket.inbound_buffer_size = 1024 * 1024 # 1MB Buffer
+	socket.max_queued_packets = 64
 	socket.connect_to_url("ws://localhost:8080")
 	
 	# Initialize the Texture Display
