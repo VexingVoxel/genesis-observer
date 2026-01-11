@@ -103,62 +103,27 @@ func parse_and_render(data: PackedByteArray):
 	var img = Image.create_from_data(VOXEL_RES, VOXEL_RES, false, Image.FORMAT_RGBA8, voxel_data)
 	world_texture.update(img)
 	
-		# 4. Extract and Render Agents
+	# 4. Extract and Render Agents
+	var agent_offset = HEADER_SIZE + VOXEL_PAYLOAD_SIZE
+	var mm = agent_visualizer.multimesh
+	var texture_size = 512.0
+	var scale_factor = texture_size / VOXEL_RES
 	
-		var agent_offset = HEADER_SIZE + VOXEL_PAYLOAD_SIZE
-	
-		var mm = agent_visualizer.multimesh
-	
+	for i in range(AGENT_COUNT):
+		var ptr = agent_offset + (i * 64)
+		var px = data.decode_float(ptr)
+		var py = data.decode_float(ptr + 4)
+		var rot = data.decode_float(ptr + 24)
+		var vitals = data.decode_u32(ptr + 28)
+		var hunger = vitals & 0xFF
 		
-	
-		# Mapping constants
-	
-		var texture_size = 512.0 # TextureRect displayed size
-	
-		var world_size = 128.0   # Simulation world size
-	
-		var scale_factor = texture_size / world_size
-	
+		var screen_pos = Vector2(
+			(px * scale_factor) - (texture_size / 2.0),
+			(py * scale_factor) - (texture_size / 2.0)
+		)
 		
-	
-		for i in range(AGENT_COUNT):
-	
-			var ptr = agent_offset + (i * 64)
-	
-			var px = data.decode_float(ptr)
-	
-			var py = data.decode_float(ptr + 4)
-	
-			var rot = data.decode_float(ptr + 24)
-	
-			var vitals = data.decode_u32(ptr + 28)
-	
-			var hunger = vitals & 0xFF
-	
-			
-	
-			# Center-relative screen position
-	
-			# Map 0..128 to -256..256
-	
-			var screen_pos = Vector2(
-	
-				(px * scale_factor) - (texture_size / 2.0),
-	
-				(py * scale_factor) - (texture_size / 2.0)
-	
-			)
-	
-			
-	
-			var t = Transform2D(rot, screen_pos)
-	
-			mm.set_instance_transform_2d(i, t)
-	
-			
-	
-			var h_factor = float(hunger) / 255.0
-	
-			mm.set_instance_color(i, Color(1.0, 1.0 - h_factor, 1.0 - h_factor))
-	
-	
+		var t = Transform2D(rot, screen_pos)
+		mm.set_instance_transform_2d(i, t)
+		
+		var h_factor = float(hunger) / 255.0
+		mm.set_instance_color(i, Color(1.0, 1.0 - h_factor, 1.0 - h_factor))
