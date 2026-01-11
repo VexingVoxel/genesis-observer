@@ -1,93 +1,62 @@
-import zmq
-import asyncio
-import websockets
 import subprocess
 import os
 import sys
 import time
-import threading
 import signal
 
 # --- CONFIG ---
-NODE1_IP = "192.168.50.29"
-ZMQ_ADDR = f"tcp://{NODE1_IP}:5555"
-WS_PORT = 8080
 BASE_DIR = "/home/scott.johnson/home-lab"
 GODOT_BIN = f"{BASE_DIR}/bin/godot"
 PROJECT_DIR = f"{BASE_DIR}/projects/genesis/observer"
+BRIDGE_SCRIPT = f"{PROJECT_DIR}/bridge.py"
+WS_PORT = 8080
 
-connected_clients = set()
 godot_process = None
+bridge_process = None
 
 def log(msg):
     print(f"[*] {msg}", flush=True)
 
 def cleanup_stray_processes():
     log("Cleaning up existing observer processes...")
+    # Use fuser directly if possible, then ssh as backup
     subprocess.run(["fuser", "-k", f"{WS_PORT}/tcp"], capture_output=True)
-    subprocess.run(["pkill", "-f", f"{GODOT_BIN}"], capture_output=True)
-    time.sleep(1)
-
-async def zmq_subscriber_task():
-    log(f"ZMQ Subscriber connecting to {ZMQ_ADDR}...")
-    context = zmq.Context()
-    subscriber = context.socket(zmq.SUB)
-    subscriber.connect(ZMQ_ADDR)
-    subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
-    
-    log("ZMQ Subscriber Thread Active.")
-    
-    while True:
-        if subscriber.poll(100):
-            try:
-                message = subscriber.recv_string()
-                # log(f"DEBUG: Received packet from ZMQ") # Highly verbose
-                if connected_clients:
-                    await asyncio.gather(*[client.send(message) for client in connected_clients], return_exceptions=True)
-            except Exception as e:
-                log(f"ZMQ Error: {e}")
-        await asyncio.sleep(0.001)
-
-async def ws_handler(websocket):
-    log("Godot Client Connected to WebSocket!")
-    connected_clients.add(websocket)
-    try:
-        await websocket.wait_closed()
-    finally:
-        connected_clients.remove(websocket)
-        log("Godot Client Disconnected.")
-
-async def start_server():
-    asyncio.create_task(zmq_subscriber_task())
-    log(f"Starting WebSocket Server on {WS_PORT}...")
-    async with websockets.serve(ws_handler, "localhost", WS_PORT):
-        await asyncio.Future()
-
-def run_bridge():
-    try:
-        asyncio.run(start_server())
-    except Exception as e:
-        log(f"Bridge Thread Error: {e}")
+    subprocess.run(["ssh", "admin@localhost", f"sudo fuser -k {WS_PORT}/tcp"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", f"{GODOT_BIN}"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", f"python3 {BRIDGE_SCRIPT}"], capture_output=True)
+    time.sleep(2)
 
 def signal_handler(sig, frame):
     log("Shutdown signal received. Cleaning up...")
     if godot_process:
         godot_process.terminate()
+    if bridge_process:
+        bridge_process.terminate()
     sys.exit(0)
 
 if __name__ == "__main__":
-    log("--- Genesis Master Launcher starting ---")
+    log("--- Genesis Master Launcher starting (Phase 2.5) ---")
     
     cleanup_stray_processes()
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    bridge_thread = threading.Thread(target=run_bridge, daemon=True)
-    bridge_thread.start()
+    # 1. Start Bridge Process
+    log("Starting Protocol Bridge...")
+    bridge_process = subprocess.Popen(
+        [sys.executable, BRIDGE_SCRIPT],
+        stdout=sys.stdout, # Forward bridge output to launcher console for MVT visibility
+        stderr=sys.stderr
+    )
     
+    time.sleep(1) # Wait for bridge to bind
+    
+    # 2. Start Godot UI
     env = os.environ.copy()
     env["DISPLAY"] = ":1"
-    env["XAUTHORITY"] = "/run/user/1000/gdm/Xauthority"
+    # Ensure X authority is correctly set if needed
+    if "XAUTHORITY" not in env:
+        env["XAUTHORITY"] = f"/run/user/{os.getuid()}/gdm/Xauthority"
     
     log("Launching Godot UI...")
     godot_process = subprocess.Popen(
@@ -101,11 +70,17 @@ if __name__ == "__main__":
     
     try:
         while godot_process.poll() is None:
+            # Monitor bridge health
+            if bridge_process.poll() is not None:
+                log("FATAL: Bridge process died unexpectedly.")
+                break
             time.sleep(0.5)
     except KeyboardInterrupt:
         pass
         
-    log("Godot closed. Exiting.")
+    log("Godot closed or interrupt received. Exiting.")
     if godot_process:
         godot_process.terminate()
+    if bridge_process:
+        bridge_process.terminate()
     sys.exit(0)
