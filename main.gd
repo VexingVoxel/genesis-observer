@@ -13,7 +13,7 @@ var world_texture: ImageTexture
 var debug_count = 0
 
 const VOXEL_RES = 128
-const AGENT_COUNT = 100
+const AGENT_COUNT = 5
 const HEADER_SIZE = 48
 const VOXEL_PAYLOAD_SIZE = 128 * 128 * 4
 
@@ -60,7 +60,6 @@ func _process(_delta):
 		while socket.get_available_packet_count() > 0:
 			var packet = socket.get_packet()
 			var expected = HEADER_SIZE + VOXEL_PAYLOAD_SIZE + (AGENT_COUNT * 64)
-			
 			if packet.size() == expected:
 				parse_and_render(packet)
 					
@@ -95,8 +94,6 @@ func parse_and_render(data: PackedByteArray):
 	# 4. Extract and Render Agents
 	var agent_offset = HEADER_SIZE + VOXEL_PAYLOAD_SIZE
 	var mm = agent_visualizer.multimesh
-	
-	# Map 0..128 to 0..512 (TextureDisplay size)
 	var scale_factor = 512.0 / 128.0
 	
 	for i in range(AGENT_COUNT):
@@ -105,7 +102,6 @@ func parse_and_render(data: PackedByteArray):
 		var py = data.decode_float(ptr + 4)
 		var rot = data.decode_float(ptr + 24)
 		
-		# Position relative to TextureDisplay top-left (-256, -256)
 		var screen_pos = Vector2(
 			(px * scale_factor) - 256.0,
 			(py * scale_factor) - 256.0
@@ -113,3 +109,4 @@ func parse_and_render(data: PackedByteArray):
 		
 		var t = Transform2D(rot, screen_pos)
 		mm.set_instance_transform_2d(i, t)
+		mm.set_instance_color(i, Color.WHITE) # Force Visibility
