@@ -18,7 +18,7 @@ const HEADER_SIZE = 48
 const VOXEL_PAYLOAD_SIZE = 128 * 128 * 4
 
 func _ready():
-	print("Connecting to HIFI bridge (Phase 3 Debug)...")
+	print("Connecting to HIFI bridge (Phase 3)...")
 	socket.inbound_buffer_size = 1024 * 1024 * 4 # 4MB Buffer
 	socket.max_queued_packets = 2048
 	socket.connect_to_url("ws://localhost:8080")
@@ -35,7 +35,7 @@ func _ready():
 func setup_multimesh():
 	var arr_mesh = ArrayMesh.new()
 	var vertices = PackedVector2Array([
-		Vector2(0, -10),  # Top (larger for debug)
+		Vector2(0, -10),  # Top
 		Vector2(6, 8),   # Bottom Right
 		Vector2(-6, 8)   # Bottom Left
 	])
@@ -94,7 +94,8 @@ func parse_and_render(data: PackedByteArray):
 	# 4. Extract and Render Agents
 	var agent_offset = HEADER_SIZE + VOXEL_PAYLOAD_SIZE
 	var mm = agent_visualizer.multimesh
-	var scale_factor = 512.0 / 128.0
+	var texture_size = 512.0
+	var scale_factor = texture_size / VOXEL_RES
 	
 	for i in range(AGENT_COUNT):
 		var ptr = agent_offset + (i * 64)
@@ -107,18 +108,10 @@ func parse_and_render(data: PackedByteArray):
 			(py * scale_factor) - 256.0
 		)
 		
-				var t = Transform2D(rot, screen_pos)
+		var t = Transform2D(rot, screen_pos)
+		mm.set_instance_transform_2d(i, t)
 		
-				mm.set_instance_transform_2d(i, t)
-		
-				
-		
-				if i == 0:
-		
-					mm.set_instance_color(i, Color.YELLOW) # Cognitive Agent
-		
-				else:
-		
-					mm.set_instance_color(i, Color.WHITE)  # Drifting Crowd
-		
-		
+		if i == 0:
+			mm.set_instance_color(i, Color.YELLOW)
+		else:
+			mm.set_instance_color(i, Color.WHITE)
