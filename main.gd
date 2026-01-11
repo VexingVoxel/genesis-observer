@@ -96,23 +96,20 @@ func parse_and_render(data: PackedByteArray):
 	var agent_offset = HEADER_SIZE + VOXEL_PAYLOAD_SIZE
 	var mm = agent_visualizer.multimesh
 	
-	# 1:1 Mapping logic:
-	# TextureDisplay is centered in its own 512x512 space.
-	# We want to map world coord (0..128) to pixel coord (0..512)
-	# Then subtract 256 to center it on the MultiMeshInstance2D (which is at center)
-	var world_to_screen_scale = 512.0 / 128.0
+	# Map 0..128 to 0..512 (TextureDisplay size)
+	var scale_factor = 512.0 / 128.0
 	
 	for i in range(AGENT_COUNT):
 		var ptr = agent_offset + (i * 64)
 		var px = data.decode_float(ptr)
 		var py = data.decode_float(ptr + 4)
-		var rot = data.decode_float(ptr + 24) # Radian from shader
+		var rot = data.decode_float(ptr + 24)
 		
+		# Position relative to TextureDisplay top-left (-256, -256)
 		var screen_pos = Vector2(
-			(px * world_to_screen_scale) - 256.0,
-			(py * world_to_screen_scale) - 256.0
+			(px * scale_factor) - 256.0,
+			(py * scale_factor) - 256.0
 		)
 		
 		var t = Transform2D(rot, screen_pos)
 		mm.set_instance_transform_2d(i, t)
-		mm.set_instance_color(i, Color.WHITE)
