@@ -35,9 +35,9 @@ func _ready():
 func setup_multimesh():
 	var arr_mesh = ArrayMesh.new()
 	var vertices = PackedVector2Array([
-		Vector2(0, -10),
-		Vector2(6, 8),
-		Vector2(-6, 8)
+		Vector2(0, -8),
+		Vector2(5, 6),
+		Vector2(-5, 6)
 	])
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -111,10 +111,9 @@ func parse_and_render(data: PackedByteArray):
 		)
 		
 		var t = Transform2D(rot, screen_pos)
+		mm.set_instance_transform_2d(i, t)
 		
 		if i == 0:
-			mm.set_instance_transform_2d(i, t.scaled(Vector2(1.5, 1.5)))
-			mm.set_instance_color(i, Color.CYAN)
+			mm.set_instance_color(i, Color.RED)
 		else:
-			mm.set_instance_transform_2d(i, t)
 			mm.set_instance_color(i, Color.WHITE)
