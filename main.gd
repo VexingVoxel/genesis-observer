@@ -18,7 +18,7 @@ const HEADER_SIZE = 48
 const VOXEL_PAYLOAD_SIZE = 128 * 128 * 4
 
 func _ready():
-	print("Connecting to HIFI bridge (Phase 3)...")
+	print("Connecting to HIFI bridge (Phase 3 Final)...")
 	socket.inbound_buffer_size = 1024 * 1024 * 4 # 4MB Buffer
 	socket.max_queued_packets = 2048
 	socket.connect_to_url("ws://localhost:8080")
@@ -35,9 +35,9 @@ func _ready():
 func setup_multimesh():
 	var arr_mesh = ArrayMesh.new()
 	var vertices = PackedVector2Array([
-		Vector2(0, -10),  # Top
-		Vector2(6, 8),   # Bottom Right
-		Vector2(-6, 8)   # Bottom Left
+		Vector2(0, -10),
+		Vector2(6, 8),
+		Vector2(-6, 8)
 	])
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -57,9 +57,11 @@ func _process(_delta):
 	if state == WebSocketPeer.STATE_OPEN:
 		status_label.text = "Bridge: ONLINE"
 		status_label.modulate = Color.GREEN
+		
 		while socket.get_available_packet_count() > 0:
 			var packet = socket.get_packet()
 			var expected = HEADER_SIZE + VOXEL_PAYLOAD_SIZE + (AGENT_COUNT * 64)
+			
 			if packet.size() == expected:
 				parse_and_render(packet)
 					
@@ -108,20 +110,11 @@ func parse_and_render(data: PackedByteArray):
 			(py * scale_factor) - 256.0
 		)
 		
-				var t = Transform2D(rot, screen_pos)
+		var t = Transform2D(rot, screen_pos)
 		
-				
-		
-				if i == 0:
-		
-					mm.set_instance_transform_2d(i, t.scaled(Vector2(1.5, 1.5)))
-		
-					mm.set_instance_color(i, Color.CYAN) # Cognitive Agent
-		
-				else:
-		
-					mm.set_instance_transform_2d(i, t)
-		
-					mm.set_instance_color(i, Color.WHITE) # Drifting Crowd
-		
-		
+		if i == 0:
+			mm.set_instance_transform_2d(i, t.scaled(Vector2(1.5, 1.5)))
+			mm.set_instance_color(i, Color.CYAN)
+		else:
+			mm.set_instance_transform_2d(i, t)
+			mm.set_instance_color(i, Color.WHITE)
