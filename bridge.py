@@ -6,12 +6,14 @@ import time
 import socket
 import sys
 
-# Constants from Phase 2.5 Plan
+# Constants from Phase 3 Plan (Protocol v3)
 NODE1_IP = "192.168.50.29"
 ZMQ_ADDR = f"tcp://{NODE1_IP}:5555"
 MAGIC_BYTE = 0xDEADBEEF
-EXPECTED_PAYLOAD_SIZE = 128 * 128 * 4
-EXPECTED_PACKET_SIZE = 40 + EXPECTED_PAYLOAD_SIZE
+VOXEL_PAYLOAD_SIZE = 128 * 128 * 4
+AGENT_COUNT = 100
+AGENT_PAYLOAD_SIZE = AGENT_COUNT * 64
+EXPECTED_PACKET_SIZE = 48 + VOXEL_PAYLOAD_SIZE + AGENT_PAYLOAD_SIZE
 
 # MVT State
 connected_clients = set()
@@ -46,11 +48,11 @@ async def telemetry_reporter_task():
 
 async def zmq_subscriber_task():
     global total_bytes_received
-    print(f"ZMQ Subscriber Task Starting (Binary Mode)...", flush=True)
+    print(f"ZMQ Subscriber Task Starting (Binary Mode v3)...", flush=True)
+    print(f"Expected Packet Size: {EXPECTED_PACKET_SIZE} bytes", flush=True)
     context = zmq.Context()
     subscriber = context.socket(zmq.SUB)
     
-    # Apply Conflate to match Node 1 policy
     subscriber.setsockopt(zmq.CONFLATE, 1)
     subscriber.connect(ZMQ_ADDR)
     subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
@@ -58,29 +60,32 @@ async def zmq_subscriber_task():
     print(f"Connected to ZMQ: {ZMQ_ADDR}", flush=True)
 
     while True:
-        # We use NOBLOCK to stay reactive to client changes
         try:
             packet = subscriber.recv(flags=zmq.NOBLOCK)
             total_bytes_received += len(packet)
 
             # --- Binary Sync Check ---
             if len(packet) != EXPECTED_PACKET_SIZE:
-                print(f"ERR: Packet size mismatch. Got {len(packet)}, expected {EXPECTED_PACKET_SIZE}", flush=True)
                 continue
 
             magic = struct.unpack("<I", packet[0:4])[0]
             if magic != MAGIC_BYTE:
-                print(f"ERR: Magic Byte mismatch (Got {hex(magic)}). Dropping frame.", flush=True)
                 continue
 
-            # Forward raw binary to all Godot clients
+            # --- Injection: Use padding_a (offset 4) for Node 2 status ---
+            packet_mutable = bytearray(packet)
+            packet_mutable[4] = 1 if node2_online else 0
+            
+            # Forward raw binary to all connected clients
             if connected_clients:
-                await asyncio.gather(*[client.send(packet) for client in connected_clients], return_exceptions=True)
+                await asyncio.gather(*[client.send(packet_mutable) for client in connected_clients], return_exceptions=True)
                 
         except zmq.Again:
             pass # No packet ready
+        except Exception as e:
+            print(f"ZMQ ERR: {e}", flush=True)
         
-        await asyncio.sleep(0.001) # Maintain 1ms responsiveness
+        await asyncio.sleep(0.001)
 
 async def handler(websocket):
     print(f"Godot Client Connected!", flush=True)
@@ -92,23 +97,26 @@ async def handler(websocket):
         print(f"Godot Client Disconnected.", flush=True)
 
 async def main():
-    print("--- Genesis HIFI Bridge Starting ---", flush=True)
+    print("--- Genesis HIFI Bridge Starting (Phase 3) ---", flush=True)
     
     loop = asyncio.get_running_loop()
     
     # Start Presence Listener (UDP Port 5558)
     print("Starting Node 2 Presence Listener on UDP 5558...", flush=True)
-    await loop.create_datagram_endpoint(
-        lambda: Node2PresenceProtocol(),
-        local_addr=('0.0.0.0', 5558)
-    )
+    try:
+        await loop.create_datagram_endpoint(
+            lambda: Node2PresenceProtocol(),
+            local_addr=('0.0.0.0', 5558)
+        )
+    except Exception as e:
+        print(f"UDP Listener Error: {e}", flush=True)
 
     # Start Tasks
     asyncio.create_task(zmq_subscriber_task())
     asyncio.create_task(telemetry_reporter_task())
     
     async with websockets.serve(handler, "localhost", 8080):
-        print("WebSocket Server Listening on 8080 (Binary Mode)...", flush=True)
+        print("WebSocket Server Listening on 8080...", flush=True)
         await asyncio.Future()  # run forever
 
 if __name__ == "__main__":
