@@ -95,8 +95,14 @@ stretch_mode = 5
 
 [node name="AgentLayer" type="Node2D" parent="."]
 
-position = Vector2(640, 400)
+
+
+
 
 
 
 [node name="AgentMultiMesh" type="MultiMeshInstance2D" parent="AgentLayer"]
+
+
+
+
