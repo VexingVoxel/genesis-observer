@@ -107,6 +107,18 @@ func parse_and_render(data: PackedByteArray):
 			(py * scale_factor) - 256.0
 		)
 		
-		var t = Transform2D(rot, screen_pos)
-		mm.set_instance_transform_2d(i, t)
-		mm.set_instance_color(i, Color.WHITE) # Force Visibility
+				var t = Transform2D(rot, screen_pos)
+		
+				mm.set_instance_transform_2d(i, t)
+		
+				
+		
+				if i == 0:
+		
+					mm.set_instance_color(i, Color.YELLOW) # Cognitive Agent
+		
+				else:
+		
+					mm.set_instance_color(i, Color.WHITE)  # Drifting Crowd
+		
+		
