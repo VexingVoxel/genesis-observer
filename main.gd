@@ -13,12 +13,12 @@ var world_texture: ImageTexture
 var debug_count = 0
 
 const VOXEL_RES = 128
-const AGENT_COUNT = 100
+const AGENT_COUNT = 5
 const HEADER_SIZE = 48
 const VOXEL_PAYLOAD_SIZE = 128 * 128 * 4
 
 func _ready():
-	print("Connecting to HIFI bridge (Phase 3)...")
+	print("Connecting to HIFI bridge (Phase 3 Debug)...")
 	socket.inbound_buffer_size = 1024 * 1024 * 4 # 4MB Buffer
 	socket.max_queued_packets = 2048
 	socket.connect_to_url("ws://localhost:8080")
@@ -35,9 +35,9 @@ func _ready():
 func setup_multimesh():
 	var arr_mesh = ArrayMesh.new()
 	var vertices = PackedVector2Array([
-		Vector2(0, -4),  # Top
-		Vector2(3, 4),   # Bottom Right
-		Vector2(-3, 4)   # Bottom Left
+		Vector2(0, -10),  # Top (larger for debug)
+		Vector2(6, 8),   # Bottom Right
+		Vector2(-6, 8)   # Bottom Left
 	])
 	var arrays = []
 	arrays.resize(Mesh.ARRAY_MAX)
@@ -55,25 +55,14 @@ func _process(_delta):
 	var state = socket.get_ready_state()
 	
 	if state == WebSocketPeer.STATE_OPEN:
-		if status_label.text != "Bridge: ONLINE":
-			print("WebSocket Connected! State: OPEN")
 		status_label.text = "Bridge: ONLINE"
 		status_label.modulate = Color.GREEN
-		
 		while socket.get_available_packet_count() > 0:
 			var packet = socket.get_packet()
 			var expected = HEADER_SIZE + VOXEL_PAYLOAD_SIZE + (AGENT_COUNT * 64)
 			
-			if debug_count < 5:
-				print("GODOT RECV: ", packet.size(), " bytes")
-				debug_count += 1
-				
 			if packet.size() == expected:
 				parse_and_render(packet)
-			else:
-				if debug_count < 10:
-					print("GODOT ERR: Size mismatch. Got ", packet.size(), " expected ", expected)
-					debug_count += 1
 					
 	elif state == WebSocketPeer.STATE_CLOSED:
 		status_label.text = "Bridge: OFFLINE"
@@ -106,24 +95,24 @@ func parse_and_render(data: PackedByteArray):
 	# 4. Extract and Render Agents
 	var agent_offset = HEADER_SIZE + VOXEL_PAYLOAD_SIZE
 	var mm = agent_visualizer.multimesh
-	var texture_size = 512.0
-	var scale_factor = texture_size / VOXEL_RES
+	
+	# 1:1 Mapping logic:
+	# TextureDisplay is centered in its own 512x512 space.
+	# We want to map world coord (0..128) to pixel coord (0..512)
+	# Then subtract 256 to center it on the MultiMeshInstance2D (which is at center)
+	var world_to_screen_scale = 512.0 / 128.0
 	
 	for i in range(AGENT_COUNT):
 		var ptr = agent_offset + (i * 64)
 		var px = data.decode_float(ptr)
 		var py = data.decode_float(ptr + 4)
-		var rot = data.decode_float(ptr + 24)
-		var vitals = data.decode_u32(ptr + 28)
-		var hunger = vitals & 0xFF
+		var rot = data.decode_float(ptr + 24) # Radian from shader
 		
 		var screen_pos = Vector2(
-			(px * scale_factor) - (texture_size / 2.0),
-			(py * scale_factor) - (texture_size / 2.0)
+			(px * world_to_screen_scale) - 256.0,
+			(py * world_to_screen_scale) - 256.0
 		)
 		
 		var t = Transform2D(rot, screen_pos)
 		mm.set_instance_transform_2d(i, t)
-		
-		var h_factor = float(hunger) / 255.0
-		mm.set_instance_color(i, Color(1.0, 1.0 - h_factor, 1.0 - h_factor))
+		mm.set_instance_color(i, Color.WHITE)
