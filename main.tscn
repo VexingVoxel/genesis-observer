@@ -15,125 +15,64 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_x8x8x")
 
-[node name="ColorRect" type="ColorRect" parent="."]
+[node name="BG" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0784314, 0.0784314, 0.0784314, 1)
+color = Color(0.05, 0.05, 0.05, 1)
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
-
+[node name="HUD" type="PanelContainer" parent="."]
 layout_mode = 1
-
-anchors_preset = 5
-
-anchor_left = 0.5
-
-anchor_right = 0.5
-
-offset_left = -150.0
-
-offset_top = 20.0
-
-offset_right = 150.0
-
-offset_bottom = 140.0
-
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 80.0
 grow_horizontal = 2
 
-theme_override_constants/separation = 5
-
-
-
-[node name="Title" type="Label" parent="VBoxContainer"]
-
+[node name="HBox" type="HBoxContainer" parent="HUD"]
 layout_mode = 2
+theme_override_constants/separation = 30
+alignment = 1
 
-theme_override_font_sizes/font_size = 24
-
+[node name="Title" type="Label" parent="HUD/HBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
 text = "PROJECT GENESIS"
 
-horizontal_alignment = 1
-
-
-
-[node name="Status" type="Label" parent="VBoxContainer"]
-
+[node name="Status" type="Label" parent="HUD/HBox"]
 layout_mode = 2
+text = "Bridge: --"
 
-text = "Bridge Status: DISCONNECTED"
-
-horizontal_alignment = 1
-
-
-
-[node name="Tick" type="Label" parent="VBoxContainer"]
-
+[node name="Tick" type="Label" parent="HUD/HBox"]
 layout_mode = 2
+text = "Tick: --"
 
-text = "Current Tick: --"
-
-horizontal_alignment = 1
-
-
-
-[node name="TPS" type="Label" parent="VBoxContainer"]
-
+[node name="TPS" type="Label" parent="HUD/HBox"]
 layout_mode = 2
+text = "Sim: -- TPS"
 
-text = "Sim Speed: -- TPS"
-
-horizontal_alignment = 1
-
-
-
-[node name="Compute" type="Label" parent="VBoxContainer"]
-
+[node name="Compute" type="Label" parent="HUD/HBox"]
 layout_mode = 2
+text = "GPU: -- ms"
 
-text = "GPU Latency: -- ms"
-
-horizontal_alignment = 1
-
-
+[node name="INT" type="Label" parent="HUD/HBox"]
+layout_mode = 2
+text = "AI Hub: --"
 
 [node name="TextureDisplay" type="TextureRect" parent="."]
-
-
-
 material = SubResource("ShaderMaterial_x8x8x")
-
-
-
 layout_mode = 1
-
-
-
-
-
 anchors_preset = 8
-
 anchor_left = 0.5
-
 anchor_top = 0.5
-
 anchor_right = 0.5
-
 anchor_bottom = 0.5
-
 offset_left = -256.0
-
-offset_top = -128.0
-
+offset_top = -200.0
 offset_right = 256.0
-
-offset_bottom = 384.0
-
+offset_bottom = 312.0
 grow_horizontal = 2
-
 grow_vertical = 2
-
 stretch_mode = 5
