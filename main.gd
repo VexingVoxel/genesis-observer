@@ -13,34 +13,74 @@ var world_texture: ImageTexture
 var debug_count = 0
 
 const VOXEL_RES = 128
-# ...
+const AGENT_COUNT = 100
+const HEADER_SIZE = 48
+const VOXEL_PAYLOAD_SIZE = 128 * 128 * 4
+
+func _ready():
+	print("Connecting to HIFI bridge (Phase 3)...")
+	socket.inbound_buffer_size = 1024 * 1024 * 4 # 4MB Buffer
+	socket.max_queued_packets = 2048
+	socket.connect_to_url("ws://localhost:8080")
+	
+	# Initialize Voxel Texture
+	var img = Image.create(VOXEL_RES, VOXEL_RES, false, Image.FORMAT_RGBA8)
+	world_texture = ImageTexture.create_from_image(img)
+	texture_rect.texture = world_texture
+	texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	
+	# Initialize Agents
+	setup_multimesh()
+
+func setup_multimesh():
+	var arr_mesh = ArrayMesh.new()
+	var vertices = PackedVector2Array([
+		Vector2(0, -4),  # Top
+		Vector2(3, 4),   # Bottom Right
+		Vector2(-3, 4)   # Bottom Left
+	])
+	var arrays = []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arr_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	
+	var mm = MultiMesh.new()
+	mm.mesh = arr_mesh
+	mm.use_colors = true
+	mm.instance_count = AGENT_COUNT
+	agent_visualizer.multimesh = mm
+
+func _process(_delta):
+	socket.poll()
+	var state = socket.get_ready_state()
+	
 	if state == WebSocketPeer.STATE_OPEN:
 		if status_label.text != "Bridge: ONLINE":
 			print("WebSocket Connected! State: OPEN")
 		status_label.text = "Bridge: ONLINE"
 		status_label.modulate = Color.GREEN
+		
 		while socket.get_available_packet_count() > 0:
 			var packet = socket.get_packet()
-			
-			if debug_count < 10:
-				print("GODOT RECV Packet ", debug_count, ": ", packet.size(), " bytes")
-				debug_count += 1
-			
 			var expected = HEADER_SIZE + VOXEL_PAYLOAD_SIZE + (AGENT_COUNT * 64)
-			if packet.size() != expected:
-				if debug_count < 20:
-					print("GODOT ERR: Size mismatch! Got ", packet.size(), " expected ", expected)
-				debug_count += 1
-				continue
 			
-			parse_and_render(packet)
+			if debug_count < 5:
+				print("GODOT RECV: ", packet.size(), " bytes")
+				debug_count += 1
+				
+			if packet.size() == expected:
+				parse_and_render(packet)
+			else:
+				if debug_count < 10:
+					print("GODOT ERR: Size mismatch. Got ", packet.size(), " expected ", expected)
+					debug_count += 1
 					
 	elif state == WebSocketPeer.STATE_CLOSED:
 		status_label.text = "Bridge: OFFLINE"
 		status_label.modulate = Color.RED
 
 func parse_and_render(data: PackedByteArray):
-	# 1. Parse Header (v3 Offsets)
+	# 1. Parse Header
 	var node2_status = data.decode_u32(4)
 	var tick = data.decode_u64(8)
 	var compute_ms = data.decode_float(24)
@@ -63,29 +103,62 @@ func parse_and_render(data: PackedByteArray):
 	var img = Image.create_from_data(VOXEL_RES, VOXEL_RES, false, Image.FORMAT_RGBA8, voxel_data)
 	world_texture.update(img)
 	
-	# 4. Extract and Render Agents
-	var agent_offset = HEADER_SIZE + VOXEL_PAYLOAD_SIZE
-	var mm = agent_visualizer.multimesh
+		# 4. Extract and Render Agents
 	
-	# Map world space to screen space
-	# TextureRect is centered at offset_left -256, offset_top -200, width 512, height 512
-	var world_to_screen_scale = 512.0 / 128.0 
+		var agent_offset = HEADER_SIZE + VOXEL_PAYLOAD_SIZE
 	
-	for i in range(AGENT_COUNT):
-		var ptr = agent_offset + (i * 64)
-		var px = data.decode_float(ptr)
-		var py = data.decode_float(ptr + 4)
-		# var pz = data.decode_float(ptr + 8)
-		var rot = data.decode_float(ptr + 24)
-		var vitals = data.decode_u32(ptr + 28)
-		var hunger = vitals & 0xFF
+		var mm = agent_visualizer.multimesh
+	
 		
-		# Calculate Transform
-		# Position is relative to the TextureDisplay center
-		var screen_pos = Vector2(px * world_to_screen_scale - 256, py * world_to_screen_scale - 200)
-		var t = Transform2D(rot, screen_pos)
-		mm.set_instance_transform_2d(i, t)
+	
+		# Mapping constants
+	
+		var texture_size = 512.0 # TextureRect displayed size
+	
+		var world_size = 128.0   # Simulation world size
+	
+		var scale_factor = texture_size / world_size
+	
 		
-		# Color based on hunger (White -> Red)
-		var h_factor = float(hunger) / 255.0
-		mm.set_instance_color(i, Color(1.0, 1.0 - h_factor, 1.0 - h_factor))
+	
+		for i in range(AGENT_COUNT):
+	
+			var ptr = agent_offset + (i * 64)
+	
+			var px = data.decode_float(ptr)
+	
+			var py = data.decode_float(ptr + 4)
+	
+			var rot = data.decode_float(ptr + 24)
+	
+			var vitals = data.decode_u32(ptr + 28)
+	
+			var hunger = vitals & 0xFF
+	
+			
+	
+			# Center-relative screen position
+	
+			# Map 0..128 to -256..256
+	
+			var screen_pos = Vector2(
+	
+				(px * scale_factor) - (texture_size / 2.0),
+	
+				(py * scale_factor) - (texture_size / 2.0)
+	
+			)
+	
+			
+	
+			var t = Transform2D(rot, screen_pos)
+	
+			mm.set_instance_transform_2d(i, t)
+	
+			
+	
+			var h_factor = float(hunger) / 255.0
+	
+			mm.set_instance_color(i, Color(1.0, 1.0 - h_factor, 1.0 - h_factor))
+	
+	
