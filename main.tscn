@@ -1,6 +1,10 @@
-[gd_scene load_steps=2 format=3 uid="uid://bv8x8x8x8x8x8"]
+[gd_scene load_steps=5 format=3 uid="uid://bv8x8x8x8x8x8"]
 
 [ext_resource type="Script" path="res://main.gd" id="1_x8x8x"]
+[ext_resource type="Shader" path="res://hifi_visualizer.gdshader" id="2_h8x8x"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_x8x8x"]
+shader = ExtResource("2_h8x8x")
 
 [node name="Main" type="Control"]
 layout_mode = 3
@@ -21,37 +25,115 @@ grow_vertical = 2
 color = Color(0.0784314, 0.0784314, 0.0784314, 1)
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
+
 layout_mode = 1
-anchors_preset = 8
+
+anchors_preset = 5
+
 anchor_left = 0.5
-anchor_top = 0.5
+
 anchor_right = 0.5
-anchor_bottom = 0.5
+
 offset_left = -150.0
-offset_top = -50.0
+
+offset_top = 20.0
+
 offset_right = 150.0
-offset_bottom = 50.0
+
+offset_bottom = 140.0
+
 grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 10
+
+theme_override_constants/separation = 5
+
+
 
 [node name="Title" type="Label" parent="VBoxContainer"]
+
 layout_mode = 2
+
 theme_override_font_sizes/font_size = 24
+
 text = "PROJECT GENESIS"
+
 horizontal_alignment = 1
+
+
 
 [node name="Status" type="Label" parent="VBoxContainer"]
+
 layout_mode = 2
+
 text = "Bridge Status: DISCONNECTED"
+
 horizontal_alignment = 1
+
+
 
 [node name="Tick" type="Label" parent="VBoxContainer"]
+
 layout_mode = 2
+
 text = "Current Tick: --"
+
 horizontal_alignment = 1
 
-[node name="Host" type="Label" parent="VBoxContainer"]
+
+
+[node name="TPS" type="Label" parent="VBoxContainer"]
+
 layout_mode = 2
-text = "Source Node: --"
+
+text = "Sim Speed: -- TPS"
+
 horizontal_alignment = 1
+
+
+
+[node name="Compute" type="Label" parent="VBoxContainer"]
+
+layout_mode = 2
+
+text = "GPU Latency: -- ms"
+
+horizontal_alignment = 1
+
+
+
+[node name="TextureDisplay" type="TextureRect" parent="."]
+
+
+
+material = SubResource("ShaderMaterial_x8x8x")
+
+
+
+layout_mode = 1
+
+
+
+
+
+anchors_preset = 8
+
+anchor_left = 0.5
+
+anchor_top = 0.5
+
+anchor_right = 0.5
+
+anchor_bottom = 0.5
+
+offset_left = -256.0
+
+offset_top = -128.0
+
+offset_right = 256.0
+
+offset_bottom = 384.0
+
+grow_horizontal = 2
+
+grow_vertical = 2
+
+stretch_mode = 5
