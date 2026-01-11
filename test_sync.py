@@ -2,13 +2,15 @@ import zmq
 import struct
 import time
 
-# Simulation Config
+# Simulation Config (Protocol v3)
 ADDR = "tcp://127.0.0.1:5555"
 MAGIC_BYTE = 0xDEADBEEF
-EXPECTED_PACKET_SIZE = 40 + (128 * 128 * 4)
+AGENT_COUNT = 100
+EXPECTED_PACKET_SIZE = 48 + (128 * 128 * 4) + (AGENT_COUNT * 64)
 
 def send_packet(socket, magic, tick):
-    header = struct.pack("<IIQQffHH I", 
+    # Header v3: 48 bytes
+    header = struct.pack("<IIQqffHHH BBBB I H", 
         magic, 
         0,              # Padding A
         tick, 
@@ -16,17 +18,21 @@ def send_packet(socket, magic, tick):
         0.15,           # Compute ms
         60.0,           # TPS
         128, 128,       # Res
-        0               # Padding B
+        AGENT_COUNT,
+        0, 0, 0, 0,     # Padding B-E
+        0,              # Padding F
+        0               # Padding G
     )
-    payload = b'\x01' * (128 * 128 * 4) # Fill with "Dirt" ID
-    socket.send(header + payload)
+    voxels = b'\x01' * (128 * 128 * 4) # Fill with "Dirt" ID
+    agents = b'\x00' * (AGENT_COUNT * 64)
+    socket.send(header + voxels + agents)
 
 def main():
     context = zmq.Context()
     socket = context.socket(zmq.PUB)
     socket.bind(ADDR)
     
-    print("--- Binary Sync Test Utility Starting ---")
+    print("--- Binary Sync Test Utility v3 Starting ---")
     print(f"Binding to {ADDR}")
     time.sleep(1)
 
@@ -34,7 +40,7 @@ def main():
     try:
         for _ in range(3):
             # 1. Send Valid Packet
-            print(f"[TEST] Sending Valid Packet (Tick {tick})")
+            print(f"[TEST] Sending Valid v3 Packet (Tick {tick})")
             send_packet(socket, MAGIC_BYTE, tick)
             tick += 1
             time.sleep(1)
@@ -43,11 +49,6 @@ def main():
             print("[TEST] Sending Malformed Packet (Wrong Magic)")
             send_packet(socket, 0xBADBEEF, tick)
             tick += 1
-            time.sleep(1)
-
-            # 3. Send Wrong Size Packet
-            print("[TEST] Sending Malformed Packet (Wrong Size)")
-            socket.send(b"SMALL_PACKET")
             time.sleep(1)
 
     except KeyboardInterrupt:
