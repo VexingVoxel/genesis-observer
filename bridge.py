@@ -21,51 +21,24 @@ node2_online = False
 node2_last_seen = 0
 total_bytes_received = 0
 last_telemetry_time = time.time()
+debug_packet_count = 0
 
 class Node2PresenceProtocol(asyncio.DatagramProtocol):
-    def datagram_received(self, data, addr):
-        global node2_online, node2_last_seen
-        if addr[0] == "192.168.50.22": # Node 2 IP
-            node2_online = True
-            node2_last_seen = time.time()
-
-async def telemetry_reporter_task():
-    global total_bytes_received, last_telemetry_time, node2_online
-    while True:
-        await asyncio.sleep(1.0)
-        now = time.time()
-        duration = now - last_telemetry_time
-        mbps = (total_bytes_received * 8) / (1024 * 1024 * duration)
-        
-        # Check Node 2 Timeout (5 seconds)
-        if now - node2_last_seen > 5.0:
-            node2_online = False
-            
-        print(f"[MVT] Throughput: {mbps:.2f} Mbps | Node 2: {'ONLINE' if node2_online else 'OFFLINE'}", flush=True)
-        
-        total_bytes_received = 0
-        last_telemetry_time = now
-
-async def zmq_subscriber_task():
-    global total_bytes_received
-    print(f"ZMQ Subscriber Task Starting (Binary Mode v3)...", flush=True)
-    print(f"Expected Packet Size: {EXPECTED_PACKET_SIZE} bytes", flush=True)
-    context = zmq.Context()
-    subscriber = context.socket(zmq.SUB)
-    
-    subscriber.setsockopt(zmq.CONFLATE, 1)
-    subscriber.connect(ZMQ_ADDR)
-    subscriber.setsockopt_string(zmq.SUBSCRIBE, "")
-    
-    print(f"Connected to ZMQ: {ZMQ_ADDR}", flush=True)
-
+# ...
     while True:
         try:
             packet = subscriber.recv(flags=zmq.NOBLOCK)
             total_bytes_received += len(packet)
+            
+            global debug_packet_count
+            if debug_packet_count < 10:
+                print(f"DEBUG: Bridge Recv ZMQ Packet {debug_packet_count}: {len(packet)} bytes", flush=True)
+                debug_packet_count += 1
 
             # --- Binary Sync Check ---
             if len(packet) != EXPECTED_PACKET_SIZE:
+                if debug_packet_count < 20:
+                    print(f"ERR: Size mismatch! Got {len(packet)}, expected {EXPECTED_PACKET_SIZE}", flush=True)
                 continue
 
             magic = struct.unpack("<I", packet[0:4])[0]
@@ -78,6 +51,7 @@ async def zmq_subscriber_task():
             
             # Forward raw binary to all connected clients
             if connected_clients:
+                # Use websockets opcode for binary
                 await asyncio.gather(*[client.send(packet_mutable) for client in connected_clients], return_exceptions=True)
                 
         except zmq.Again:

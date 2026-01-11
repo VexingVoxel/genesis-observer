@@ -10,59 +10,30 @@ extends Control
 
 var socket = WebSocketPeer.new()
 var world_texture: ImageTexture
+var debug_count = 0
 
 const VOXEL_RES = 128
-const AGENT_COUNT = 100
-const HEADER_SIZE = 48
-const VOXEL_PAYLOAD_SIZE = 128 * 128 * 4
-
-func _ready():
-	print("Connecting to HIFI bridge (Phase 3)...")
-	socket.inbound_buffer_size = 1024 * 1024 # 1MB Buffer
-	socket.max_queued_packets = 64
-	socket.connect_to_url("ws://localhost:8080")
-	
-	# 1. Initialize the Voxel Texture Display
-	var img = Image.create(VOXEL_RES, VOXEL_RES, false, Image.FORMAT_RGBA8)
-	world_texture = ImageTexture.create_from_image(img)
-	texture_rect.texture = world_texture
-	texture_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	
-	# 2. Initialize the Agent MultiMesh
-	setup_multimesh()
-
-func setup_multimesh():
-	var mesh = PlaceholderMesh.new() # We'll use a simple quad for now
-	# Creating a small triangle-like shape
-	var arr_mesh = ArrayMesh.new()
-	var vertices = PackedVector2Array([
-		Vector2(0, -4),  # Top
-		Vector2(3, 4),   # Bottom Right
-		Vector2(-3, 4)   # Bottom Left
-	])
-	var arrays = []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arr_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	
-	var mm = MultiMesh.new()
-	mm.mesh = arr_mesh
-	mm.use_colors = true
-	mm.instance_count = AGENT_COUNT
-	agent_visualizer.multimesh = mm
-
-func _process(_delta):
-	socket.poll()
-	var state = socket.get_ready_state()
-	
+# ...
 	if state == WebSocketPeer.STATE_OPEN:
+		if status_label.text != "Bridge: ONLINE":
+			print("WebSocket Connected! State: OPEN")
 		status_label.text = "Bridge: ONLINE"
 		status_label.modulate = Color.GREEN
 		while socket.get_available_packet_count() > 0:
 			var packet = socket.get_packet()
-			# Protocol v3 size check
-			if packet.size() == HEADER_SIZE + VOXEL_PAYLOAD_SIZE + (AGENT_COUNT * 64):
-				parse_and_render(packet)
+			
+			if debug_count < 10:
+				print("GODOT RECV Packet ", debug_count, ": ", packet.size(), " bytes")
+				debug_count += 1
+			
+			var expected = HEADER_SIZE + VOXEL_PAYLOAD_SIZE + (AGENT_COUNT * 64)
+			if packet.size() != expected:
+				if debug_count < 20:
+					print("GODOT ERR: Size mismatch! Got ", packet.size(), " expected ", expected)
+				debug_count += 1
+				continue
+			
+			parse_and_render(packet)
 					
 	elif state == WebSocketPeer.STATE_CLOSED:
 		status_label.text = "Bridge: OFFLINE"
