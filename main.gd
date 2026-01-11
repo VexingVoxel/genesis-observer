@@ -13,7 +13,7 @@ var world_texture: ImageTexture
 var debug_count = 0
 
 const VOXEL_RES = 128
-const AGENT_COUNT = 5
+const AGENT_COUNT = 100
 const HEADER_SIZE = 48
 const VOXEL_PAYLOAD_SIZE = 128 * 128 * 4
 
